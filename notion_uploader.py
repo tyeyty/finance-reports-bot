@@ -1,7 +1,7 @@
 import requests
 
-NOTION_TOKEN = "YOUR_NOTION_API_KEY"
-DATABASE_ID = "YOUR_DATABASE_ID"
+NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+DATABASE_ID = os.getenv("NOTION_DB_ID")
 
 def add_to_notion(title, summary, file_url):
     data = {
