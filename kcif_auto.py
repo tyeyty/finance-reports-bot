@@ -1,23 +1,29 @@
 import os
 import requests
 from bs4 import BeautifulSoup
+import pdfplumber
+from openai import OpenAI
 from datetime import datetime
 
-# KCIF 기본 URL
-BASE_URL = "https://www.kcif.or.kr"
-MONTHLY_URL = "https://www.kcif.or.kr/annual/monthlyList"  # 월간보고서
-WEEKLY_URL = "https://www.kcif.or.kr/annual/weeklyList"    # 주간보고서
+# 환경 변수
+NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+DATABASE_ID = os.getenv("NOTION_DB_ID")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# 저장 폴더 설정
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# KCIF URLs
+BASE_URL = "https://www.kcif.or.kr"
+MONTHLY_URL = "https://www.kcif.or.kr/annual/monthlyList"
+WEEKLY_URL = "https://www.kcif.or.kr/annual/weeklyList"
+
 SAVE_DIR = "./downloads"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 def get_pdf_links(target_url):
-    """KCIF 보고서 페이지에서 PDF 링크들을 가져오기"""
     response = requests.get(target_url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
-
     pdf_links = []
     for a_tag in soup.find_all("a", href=True):
         href = a_tag["href"]
@@ -26,43 +32,85 @@ def get_pdf_links(target_url):
             pdf_links.append(full_url)
     return pdf_links
 
-def download_pdfs(links):
-    """PDF 파일을 다운로드"""
-    for link in links:
-        file_name = link.split("/")[-1]
-        file_path = os.path.join(SAVE_DIR, file_name)
-        if os.path.exists(file_path):
-            print(f"✅ 이미 존재: {file_name}")
-            continue
-        print(f"⬇️ 다운로드 중: {file_name}")
-        pdf_data = requests.get(link).content
-        with open(file_path, "wb") as f:
-            f.write(pdf_data)
-        print(f"📁 저장 완료: {file_path}")
+def download_pdf(link):
+    file_name = link.split("/")[-1]
+    file_path = os.path.join(SAVE_DIR, file_name)
+    if os.path.exists(file_path):
+        print(f"✅ 이미 존재: {file_name}")
+        return file_path
+    print(f"⬇️ 다운로드 중: {file_name}")
+    pdf_data = requests.get(link).content
+    with open(file_path, "wb") as f:
+        f.write(pdf_data)
+    print(f"📁 저장 완료: {file_path}")
+    return file_path
+
+def summarize_pdf(file_path):
+    with pdfplumber.open(file_path) as pdf:
+        text = "\n".join(page.extract_text() for page in pdf.pages)
+    prompt = f"다음 보고서를 중학생이 이해가능한 수준으로 요약해줘:\n{text[:6000]}"
+    summary = client.chat.completions.create(
+        model="gpt-5",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return summary.choices[0].message.content
+
+def add_to_notion(title, summary, file_url, date, type_name):
+    data = {
+        "parent": {"database_id": DATABASE_ID},
+        "properties": {
+            "Title": {"title": [{"text": {"content": title}}]},
+            "Summary": {"rich_text": [{"text": {"content": summary}}]},
+            "Source": {"url": file_url},
+            "Date": {"date": {"start": date}},
+            "Type": {"select": {"name": type_name}}
+        }
+    }
+    response = requests.post(
+        "https://api.notion.com/v1/pages",
+        headers={
+            "Authorization": f"Bearer {NOTION_TOKEN}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28"
+        },
+        json=data
+    )
+    if response.status_code == 200 or response.status_code == 201:
+        print(f"✅ Notion 업로드 완료: {title}")
+    else:
+        print(f"❌ Notion 업로드 실패: {response.text}")
 
 def main():
     today = datetime.today()
-    weekday = today.weekday()  # 0=월요일, 6=일요일
+    weekday = today.weekday()
 
-    # 월간/주간 URL 결정
     if today.day == 1:
         target_url = MONTHLY_URL
+        type_name = "Monthly"
         print("📅 오늘은 1일, 월간 보고서 다운로드")
-    elif weekday == 0:  # 월요일
+    elif weekday == 0:
         target_url = WEEKLY_URL
+        type_name = "Weekly"
         print("📅 오늘은 월요일, 주간 보고서 다운로드")
     else:
         print("❌ 오늘은 보고서를 다운로드할 날이 아닙니다.")
         return
 
-    print("🔍 KCIF 보고서 링크 탐색 중...")
     pdf_links = get_pdf_links(target_url)
     if not pdf_links:
         print("❌ PDF 링크를 찾지 못했습니다.")
         return
-    print(f"📄 총 {len(pdf_links)}개 파일 발견")
-    download_pdfs(pdf_links)
-    print("🎉 모든 다운로드 완료!")
+
+    for link in pdf_links:
+        file_path = download_pdf(link)
+        summary = summarize_pdf(file_path)
+        add_to_notion(
+            title=os.path.basename(file_path),
+            summary=summary,
+            file_url=link,
+            date=today.strftime("%Y-%m-%d"),
+            type_name=type_name
+        )
 
 if __name__ == "__main__":
     main()
