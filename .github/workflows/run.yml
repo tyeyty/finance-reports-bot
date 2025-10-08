@@ -1,27 +1,29 @@
 name: KCIF Auto Notion Bot
 
-env:
-  NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-  NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
-
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * 1"  # 매주 월요일 실행
+    - cron: "0 0 * * 1"   # 매주 월요일 → 주간 보고서
+    - cron: "0 0 1 * *"   # 매월 1일 → 월간 보고서
 
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          pip install requests beautifulsoup4 pdfplumber openai
+
       - name: Run Notion Upload
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
-        run: python notion_uploader.py
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python kcif_notion_bot.py
