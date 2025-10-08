@@ -7,9 +7,11 @@ def add_to_notion(title, summary, file_url):
     data = {
         "parent": {"database_id": DATABASE_ID},
         "properties": {
-            "Title": {"title": [{"text": {"content": title}}]},
-            "Summary": {"rich_text": [{"text": {"content": summary}}]},
-            "Source": {"url": file_url}
+            "Title": {"title": [{"text": {"content": "Example Title"}}]},
+            "Summary": {"rich_text": [{"text": {"content": "Example summary"}}]},
+            "Source": {"url": "https://example.com/file.pdf"},
+            "Date": {"date": {"start": "2025-10-08"}},
+            "Type": {"select": {"name": "Weekly"}}
         }
     }
     requests.post(
