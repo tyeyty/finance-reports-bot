@@ -1,19 +1,20 @@
 import os
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
 
-# KCIF 주간/월간 보고서 페이지 URL
+# KCIF 기본 URL
 BASE_URL = "https://www.kcif.or.kr"
-TARGET_URL = "https://www.kcif.or.kr/annual/monthlyList"  # 월간보고서
-# TARGET_URL = "https://www.kcif.or.kr/annual/weeklyList"  # 주간보고서 (바꾸면 주간으로 전환 가능)
+MONTHLY_URL = "https://www.kcif.or.kr/annual/monthlyList"  # 월간보고서
+WEEKLY_URL = "https://www.kcif.or.kr/annual/weeklyList"    # 주간보고서
 
 # 저장 폴더 설정
 SAVE_DIR = "./downloads"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-def get_pdf_links():
+def get_pdf_links(target_url):
     """KCIF 보고서 페이지에서 PDF 링크들을 가져오기"""
-    response = requests.get(TARGET_URL)
+    response = requests.get(target_url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
@@ -40,8 +41,22 @@ def download_pdfs(links):
         print(f"📁 저장 완료: {file_path}")
 
 def main():
+    today = datetime.today()
+    weekday = today.weekday()  # 0=월요일, 6=일요일
+
+    # 월간/주간 URL 결정
+    if today.day == 1:
+        target_url = MONTHLY_URL
+        print("📅 오늘은 1일, 월간 보고서 다운로드")
+    elif weekday == 0:  # 월요일
+        target_url = WEEKLY_URL
+        print("📅 오늘은 월요일, 주간 보고서 다운로드")
+    else:
+        print("❌ 오늘은 보고서를 다운로드할 날이 아닙니다.")
+        return
+
     print("🔍 KCIF 보고서 링크 탐색 중...")
-    pdf_links = get_pdf_links()
+    pdf_links = get_pdf_links(target_url)
     if not pdf_links:
         print("❌ PDF 링크를 찾지 못했습니다.")
         return
