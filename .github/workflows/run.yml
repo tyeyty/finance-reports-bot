@@ -1,5 +1,9 @@
 name: KCIF Auto Notion Bot
 
+env:
+  NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+  NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
+
 on:
   workflow_dispatch:
   schedule:
