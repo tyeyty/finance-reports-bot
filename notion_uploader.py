@@ -3,15 +3,15 @@ import requests
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 DATABASE_ID = os.getenv("NOTION_DB_ID")
 
-def add_to_notion(title, summary, file_url):
+def add_to_notion(title, summary, file_url, date, type_name):
     data = {
         "parent": {"database_id": DATABASE_ID},
         "properties": {
-            "Title": {"title": [{"text": {"content": "Example Title"}}]},
-            "Summary": {"rich_text": [{"text": {"content": "Example summary"}}]},
-            "Source": {"url": "https://example.com/file.pdf"},
-            "Date": {"date": {"start": "2025-10-08"}},
-            "Type": {"select": {"name": "Weekly"}}
+            "Title": {"title": [{"text": {"content": title}}]},
+            "Summary": {"rich_text": [{"text": {"content": summary}}]},
+            "Source": {"url": file_url},
+            "Date": {"date": {"start": date}},        # 여기서 date는 "YYYY-MM-DD"
+            "Type": {"select": {"name": type_name}}  
         }
     }
     requests.post(
