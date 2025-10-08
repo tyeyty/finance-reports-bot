@@ -1,0 +1,23 @@
+name: KCIF Auto Notion Bot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 1"  # 매주 월요일 실행
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: pip install requests
+      - name: Run Notion Upload
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
+        run: python notion_uploader.py
