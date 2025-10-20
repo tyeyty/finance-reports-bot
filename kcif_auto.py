@@ -35,19 +35,26 @@ def get_target_pdfs(target_url, type_name):
     for a_tag in soup.find_all("a", href=True):
         text = a_tag.get_text(strip=True)
         href = a_tag["href"]
-        if any(title in text for title in target_titles):
+        # view.jsp + ftype=pdf 있는 링크만 PDF로 판단
+        if any(title in text for title in target_titles) and "view.jsp" in href and "ftype=pdf" in href:
             full_url = href if href.startswith("http") else f"{BASE_URL}{href}"
             pdf_links.append((text, full_url))
     
     return pdf_links
 
-
 def download_pdf(link):
-    file_name = link.split("/")[-1]
+    # FileName 쿼리에서 이름 추출
+    if "FileName=" in link:
+        file_name = link.split("FileName=")[-1]
+        file_name = requests.utils.unquote(file_name)
+    else:
+        file_name = link.split("/")[-1]
+
     file_path = os.path.join(SAVE_DIR, file_name)
     if os.path.exists(file_path):
         print(f"✅ 이미 존재: {file_name}")
         return file_path
+
     print(f"⬇️ 다운로드 중: {file_name}")
     pdf_data = requests.get(link).content
     with open(file_path, "wb") as f:
@@ -57,7 +64,7 @@ def download_pdf(link):
 
 def summarize_pdf(file_path):
     with pdfplumber.open(file_path) as pdf:
-        text = "\n".join(page.extract_text() for page in pdf.pages)
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
     prompt = f"다음 보고서를 중학생이 이해가능한 수준으로 요약해줘:\n{text[:6000]}"
     summary = client.chat.completions.create(
         model="gpt-5",
@@ -85,7 +92,7 @@ def add_to_notion(title, summary, file_url, date, type_name):
         },
         json=data
     )
-    if response.status_code == 200 or response.status_code == 201:
+    if response.status_code in [200, 201]:
         print(f"✅ Notion 업로드 완료: {title}")
     else:
         print(f"❌ Notion 업로드 실패: {response.text}")
@@ -107,7 +114,6 @@ def main():
         return
 
     pdf_links = get_target_pdfs(target_url, type_name)
-    
     if not pdf_links:
         print("❌ PDF 링크를 찾지 못했습니다.")
         return
@@ -116,7 +122,7 @@ def main():
         file_path = download_pdf(link)
         summary = summarize_pdf(file_path)
         add_to_notion(
-            title=title,  # PDF 제목 그대로 사용
+            title=title,
             summary=summary,
             file_url=link,
             date=today.strftime("%Y-%m-%d"),
