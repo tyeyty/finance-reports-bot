@@ -20,17 +20,27 @@ WEEKLY_URL = "https://www.kcif.or.kr/annual/weeklyList"
 SAVE_DIR = "./downloads"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-def get_pdf_links(target_url):
+def get_target_pdfs(target_url, type_name):
     response = requests.get(target_url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
+    
     pdf_links = []
+
+    if type_name == "Weekly":
+        target_titles = ["주간 Wall Street 인사이트", "주간 이슈"]
+    else:  # Monthly
+        target_titles = ["월간 보고서"]
+
     for a_tag in soup.find_all("a", href=True):
+        text = a_tag.get_text(strip=True)
         href = a_tag["href"]
-        if href.endswith(".pdf"):
+        if any(title in text for title in target_titles):
             full_url = href if href.startswith("http") else f"{BASE_URL}{href}"
-            pdf_links.append(full_url)
+            pdf_links.append((text, full_url))
+    
     return pdf_links
+
 
 def download_pdf(link):
     file_name = link.split("/")[-1]
@@ -96,16 +106,17 @@ def main():
         print("❌ 오늘은 보고서를 다운로드할 날이 아닙니다.")
         return
 
-    pdf_links = get_pdf_links(target_url)
+    pdf_links = get_target_pdfs(target_url, type_name)
+    
     if not pdf_links:
         print("❌ PDF 링크를 찾지 못했습니다.")
         return
 
-    for link in pdf_links:
+    for title, link in pdf_links:
         file_path = download_pdf(link)
         summary = summarize_pdf(file_path)
         add_to_notion(
-            title=os.path.basename(file_path),
+            title=title,  # PDF 제목 그대로 사용
             summary=summary,
             file_url=link,
             date=today.strftime("%Y-%m-%d"),
