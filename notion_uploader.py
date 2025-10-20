@@ -14,7 +14,7 @@ def add_to_notion(title, summary, file_url, date, type_name):
             "Type": {"select": {"name": type_name}}  
         }
     }
-    requests.post(
+    response = requests.post(
         "https://api.notion.com/v1/pages",
         headers={
             "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -23,3 +23,6 @@ def add_to_notion(title, summary, file_url, date, type_name):
         },
         json=data
     )
+
+print("Status Code:", response.status_code)
+print("Response:", response.text)
